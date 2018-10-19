@@ -11,17 +11,27 @@ bool askForAnotherLexicalCheck();
 
 char *requestStringInputToCheck();
 
+struct _Buffer;
+
+typedef char (*FetchNextCharacter)(struct _Buffer *self);
+
 typedef struct _Automata {
     int id;
 } Automata;
 
 typedef struct _Buffer {
     char *input;
+    FetchNextCharacter fetchNextCharacter;
 } Buffer;
 
 char Buffer__fetchNextCharacter(Buffer *self) {
-    char nextCharacter = self->input[0];
-    self->input = self->input + 1;
+    char *wholeBufferInput = self->input;
+    char nextCharacter = wholeBufferInput[0];
+    size_t sizeOfInput = strlen(wholeBufferInput);
+    char *inputWithoutFirstCharacter = malloc(sizeOfInput - 1);
+    memcpy(inputWithoutFirstCharacter, wholeBufferInput + 1, sizeOfInput - 1);
+    free(self->input);
+    self->input = inputWithoutFirstCharacter;
     return nextCharacter;
 }
 
@@ -40,12 +50,12 @@ caso contrario, la cadena no pertenece al lenguaje.
 
 int main() {
     bool lexicalCheckRequired;
-    Buffer buffer;
+    Buffer buffer = {.fetchNextCharacter = Buffer__fetchNextCharacter};
 
     do {
         buffer.input = requestStringInputToCheck();
 
-        char textCharacter = Buffer__fetchNextCharacter(&buffer);
+        char textCharacter = buffer.fetchNextCharacter(&buffer);
         /*while (!IsFDT(textCharacter)) { //- Mientras no sea fdt, repetir:
             automata.setActualStateToInitialState(); // (1) Estado actual del autómata: estado inicial
             while (!automata.stateIsFinalOrFDT()) { // (2) Mientras no sea un estado final y no sea el estado FDT, repetir:
