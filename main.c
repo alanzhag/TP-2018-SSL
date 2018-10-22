@@ -7,36 +7,160 @@
 #define YES 'S'
 #define FDT '\0'
 #define CENTINEL '%'
+#define NO_MATCH -1
+#define AUTOMATON_STATES_QTY 6
+#define CHARACTER_MATCHERS_QTY 6
+#define INITIAL_STATE_ID 0
 
 struct _Buffer;
 struct _Automaton;
 struct _AutomatonTable;
+struct _CharacterStateMatcher;
+struct _Matcher;
+
+//Utils functions defined at bottom
 
 bool stateIsNotFinalNorFDT(struct _Automaton automaton);
 
 bool askForAnotherLexicalCheck();
 
-bool notFDT(struct _Buffer buffer);
-
 char *requestStringInputToCheck();
 
+//State
+
 typedef enum {
-    INITIAL, FINAL, END_OF_TEXT, END_OF_SEQUENCE, NONE
-} STATE_PROPERTY;
+    INITIAL, FINAL, END_OF_TEXT, END_OF_SEQUENCE, REJECTION, NONE
+} StateProperty;
 
 typedef struct _State {
     int id;
-    STATE_PROPERTY stateProperty;
+    StateProperty stateProperty;
 } State;
 
-typedef State (*GetInitialState)(struct _AutomatonTable *self);
+//Matcher
+typedef bool (*MatcherFunction)(struct _Matcher *self, char character);
 
-typedef State (*MakeTransitionFromState)(struct _AutomatonTable *self, State state, char character);
+//TODO: Esto podría ser parte del CharacterStateMatcher(columna, [caracteres que matchean]) y .match(caracter)
+typedef struct _Matcher {
+    const char *charactersToMatch;
+    MatcherFunction match;
+} Matcher;
+
+bool Matcher__match(Matcher *self, char character) {
+    const char *charactersToMatch = self->charactersToMatch;
+    size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
+    for (int i = 0; i < lengthOfMatchableCharacters; i++) {
+        if (charactersToMatch[i] == character) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Matcher Matcher__init(const char *charactersToMatch) {
+    Matcher matcher = {.charactersToMatch = charactersToMatch, .match = Matcher__match};
+    return matcher;
+};
+
+//CharacterStateMatcher
+
+typedef int (*Match)(struct _CharacterStateMatcher *self, char characterToMatch);
+
+typedef struct _CharacterStateMatcher {
+    int column;
+    Match match;
+    Matcher matcher;
+
+} CharacterStateMatcher;
+
+int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMatch) {
+    Matcher matcher = self->matcher;
+    if (matcher.match(&matcher, characterToMatch)) {
+        return self->column;
+    } else {
+        return NO_MATCH;
+    };
+}
+
+CharacterStateMatcher CharacterStateMatcher__init(int column, char *charactersToMatch) {
+    CharacterStateMatcher characterStateMatcher = {
+            .match = CharacterStateMatcher__match,
+            .matcher = Matcher__init(charactersToMatch),
+            .column = column};
+    return characterStateMatcher;
+};
+
+//CharacterStateMatcherService
+
+typedef CharacterStateMatcher *(*GetCharacterStateMatchers)();
+
+typedef struct _CharacterStateMatcherService {
+    GetCharacterStateMatchers getCharacterStateMatchers;
+} CharacterStateMatcherService;
+
+CharacterStateMatcher *CharacterStateMatcherService__getCharacterStateMatchers() {
+    CharacterStateMatcher *characterStateMatchers = malloc(CHARACTER_MATCHERS_QTY * sizeof(CharacterStateMatcher));
+    char dot[] = {'.'};
+    char zeroAndOne[] = {'0', '1'};
+    char fromTwoToNine[] = {'2', '3', '4', '5', '6', '7', '8', '9'};
+    char b[] = {'B'};
+    char others[] = {};
+    char fdt[] = {FDT};
+    CharacterStateMatcher__init(0, dot);
+    CharacterStateMatcher__init(1, zeroAndOne);
+    CharacterStateMatcher__init(2, fromTwoToNine);
+    CharacterStateMatcher__init(3, b);
+    CharacterStateMatcher__init(4, others);
+    CharacterStateMatcher__init(5, fdt);
+    return characterStateMatchers;
+};
+
+//AutomatonTableService
+
+typedef State **(*GetTable)();
+
+typedef struct _AutomatonTableService {
+    GetTable getTable;
+} AutomatonTableService;
+
+State **AutomatonTableService__getTable() {
+    State **automatonTable;
+
+    automatonTable = malloc(AUTOMATON_STATES_QTY * sizeof(State *));
+    for (int i = 0; i < AUTOMATON_STATES_QTY; i++) {
+        automatonTable[i] = malloc(CHARACTER_MATCHERS_QTY * sizeof(State));
+    }
+
+    //TODO: Crear los estados y meterlos en el **.
+
+
+    return automatonTable;
+}
+
+// AutomatonTable
+
+typedef State (*MakeTransitionFromState)(struct _AutomatonTable *self, State state, char character); //TODO
+
+typedef State (*GetInitialState)();
 
 typedef struct _AutomatonTable {
+    State **table;
+    CharacterStateMatcher *characterStateMatchers;
     GetInitialState getInitialState;
     MakeTransitionFromState makeTransitionFromState;
 } AutomatonTable;
+
+State AutomatonTable__getInitialState() {
+    State initialState = {.id = INITIAL_STATE_ID, .stateProperty = INITIAL};
+    return initialState;
+}
+
+State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state, char character) {
+    State arrivalState = {};
+    return arrivalState;
+};
+
+// Automaton
 
 typedef void (*SetActualStateToInitialState)(struct _Automaton *self);
 
@@ -50,11 +174,8 @@ typedef struct _Automaton {
 } Automaton;
 
 void Automaton__setActualStateToInitialState(Automaton *self) {
-    //PRIORIDAD!!!!
-    //TODO: implementar la tabla. Necesito poder decirle que solito vaya al estado inicial (de verdad / no hardcoded).
-    //State initialState = {.id = 0, .stateProperty = INITIAL};
     AutomatonTable automatonTable = self->automatonTable;
-    self->actualState = automatonTable.getInitialState(&automatonTable);
+    self->actualState = automatonTable.getInitialState();
 }
 
 void Automaton__determineCurrentState(Automaton *self, char character) {
@@ -63,23 +184,22 @@ void Automaton__determineCurrentState(Automaton *self, char character) {
     self->actualState = resultState;
 }
 
-typedef char (*FetchNextCharacter)(struct _Buffer *self);
-
-typedef char (*IsFDT)(struct _Buffer *self);
+//Buffer
 
 typedef void (*Clean)(struct _Buffer *self);
 
 typedef void (*Push)(struct _Buffer *self, char character);
 
+typedef char (*FetchNextCharacter)(struct _Buffer *self);
+
 typedef struct _Buffer {
     char *input;
     FetchNextCharacter fetchNextCharacter;
-    IsFDT isFDT;
     Clean clean;
     Push push;
 } Buffer;
 
-char Buffer__fetchNextCharacter(Buffer *self) {
+char Buffer__fetchNextCharacter(Buffer *self) { //TODO: si no tiene nada no puede fetchear y rompe.
     char *wholeBufferInput = self->input;
     char nextCharacter = wholeBufferInput[0];
     size_t sizeOfInput = strlen(wholeBufferInput);
@@ -88,11 +208,6 @@ char Buffer__fetchNextCharacter(Buffer *self) {
     self->clean(self);
     self->input = inputWithoutFirstCharacter;
     return nextCharacter;
-}
-
-char Buffer__isFDT(Buffer *self) {
-    char *c = self->input;
-    return ((c != NULL) && (c[0] == FDT));
 }
 
 void Buffer__clean(Buffer *self) {
@@ -135,18 +250,18 @@ void Buffer__push(Buffer *self, char character) {
  * | 5+  |           |     |     |   |
  * +-----+-----------+-----+-----+---+
  *
- * +------------+-----------+-----+-----+---+---+-------+-----+
- * |    AFD     | . (punto) | 0-1 | 2-9 | B | % | Otros | FDT |
- * +------------+-----------+-----+-----+---+---+-------+-----+
- * | 0-         |         6 |   1 |   6 | 5 |   |     6 |   7 |
- * | 1          |         2 |   4 |   6 | 5 |   |     6 |   7 |
- * | 2          |         6 |   3 |   3 | 6 |   |     6 |   7 |
- * | 3          |         6 |   5 |   5 | 6 |   |     6 |   7 |
- * | 4          |         6 |   4 |   6 | 5 |   |     6 |   7 |
- * | 5+         |           |     |     |   |   |       |     |
- * | 6(rechazo) |         6 |   6 |   6 | 6 |   |     6 |   7 |
- * | 7(fdt)     |           |     |     |   |   |       |     |
- * +------------+-----------+-----+-----+---+---+-------+-----+
+ * +------------+-----------+-----+-----+---+-------+-----+
+ * |    AFD     | . (punto) | 0-1 | 2-9 | B | Otros | FDT |
+ * +------------+-----------+-----+-----+---+-------+-----+
+ * | 0-         |         6 |   1 |   6 | 5 |     6 |   7 |
+ * | 1          |         2 |   4 |   6 | 5 |     6 |   7 |
+ * | 2          |         6 |   3 |   3 | 6 |     6 |   7 |
+ * | 3          |         6 |   5 |   5 | 6 |     6 |   7 |
+ * | 4          |         6 |   4 |   6 | 5 |     6 |   7 |
+ * | 5+         |           |     |     |   |       |     |
+ * | 6(rechazo) |         6 |   6 |   6 | 6 |     6 |   7 |
+ * | 7(fdt)     |           |     |     |   |       |     |
+ * +------------+-----------+-----+-----+---+-------+-----+
  *
  * Hipotesis de trabajo:
  * La cadena ingresad no va contener FDT. Se deduce fin de texto cuando el buffer se vacia.
@@ -163,11 +278,22 @@ void Buffer__push(Buffer *self, char character) {
 
 int main() {
     bool lexicalCheckRequired;
-    AutomatonTable automatonTable = {}; //TODO: implementar la tabla.
-    Buffer buffer = {.fetchNextCharacter = Buffer__fetchNextCharacter,
+    AutomatonTableService automatonTableService = {
+            .getTable = AutomatonTableService__getTable};
+
+    CharacterStateMatcherService characterStateMatcherService = {};
+
+    AutomatonTable automatonTable = {
+            .table = automatonTableService.getTable(),
+            .characterStateMatchers = NULL,
+            .getInitialState = AutomatonTable__getInitialState,
+            .makeTransitionFromState = AutomatonTable__makeTransitionFromState};
+    Buffer buffer = {
+            .fetchNextCharacter = Buffer__fetchNextCharacter,
             .clean = Buffer__clean,
             .push = Buffer__push};
-    Automaton automaton = {.setActualStateToInitialState = Automaton__setActualStateToInitialState,
+    Automaton automaton = {
+            .setActualStateToInitialState = Automaton__setActualStateToInitialState,
             .determineCurrentState = Automaton__determineCurrentState,
             .automatonTable = automatonTable};
 
@@ -184,6 +310,7 @@ int main() {
             // (2) Mientras no sea un estado final y no sea el estado FDT, repetir
             while (stateIsNotFinalNorFDT(automaton) && textCharacter != CENTINEL) {
                 automaton.determineCurrentState(&automaton, textCharacter); // (2.1) Determinar el nuevo estado actual
+                //TODO: Fixear el bucle infinito
                 /*    prettyPrinter.append(textCharacter); //esto agrega el %.
                     textCharacter = buffer.fetchNextCharacter(&buffer); // (2.2) Actualizar el carácter a analizar
                 }
@@ -212,7 +339,7 @@ int main() {
 }
 
 bool stateIsNotFinalNorFDT(Automaton automaton) {
-    STATE_PROPERTY stateProperty = automaton.actualState.stateProperty;
+    StateProperty stateProperty = automaton.actualState.stateProperty;
     return stateProperty != FINAL && stateProperty != END_OF_TEXT;
 }
 
