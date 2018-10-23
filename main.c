@@ -48,11 +48,17 @@ typedef struct _CharacterStateMatcher {
 int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMatch) {
     const char *charactersToMatch = self->charactersToMatch;
     size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
+
+    if (lengthOfMatchableCharacters == 0) {
+        return self->column;
+    }
+
     for (int i = 0; i < lengthOfMatchableCharacters; i++) {
         if (charactersToMatch[i] == characterToMatch) {
             return self->column;
         }
     }
+
     return NO_MATCH;
 }
 
@@ -232,6 +238,14 @@ State AutomatonTable__getInitialState(AutomatonTable *self) {
 
 State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state, char character) {
     State arrivalState = {};
+
+    for (int i = 0; i < CHARACTER_MATCHERS_COLUMNS; i++) {
+        CharacterStateMatcher matcher = self->characterStateMatchers[i];
+        if (matcher.match(&matcher, character) != NO_MATCH) {
+            arrivalState = self->table[state.id][matcher.column];
+        }
+    }
+
     return arrivalState;
 };
 
@@ -374,6 +388,7 @@ int main() {
         while (textCharacter != FDT) { //- Mientras no sea fdt, repetir:
             automaton.setActualStateToInitialState(&automaton); // (1) Estado actual del autómata: estado inicial
             // (2) Mientras no sea un estado final y no sea el estado FDT, repetir
+            //TODO: Si hay error, debo leer hasta el proximo % o fdt. Tiro la basura.
             while (stateIsNotFinalNorFDT(automaton) && textCharacter != CENTINEL) {
                 automaton.determineCurrentState(&automaton, textCharacter); // (2.1) Determinar el nuevo estado actual
                 //TODO: Fixear el bucle infinito
@@ -393,7 +408,7 @@ int main() {
                     //PP <- buffer.clean(); se caga el resto. No usar.*/
             }
             printf("LOL\n");
-            break;
+            //break;
         }
 
         buffer.clean(&buffer);
