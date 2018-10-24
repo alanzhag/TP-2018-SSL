@@ -8,8 +8,8 @@
 #define FDT '\0'
 #define CENTINEL '%'
 #define NO_MATCH (-1)
-#define AUTOMATON_STATES_ROWS 8
-#define CHARACTER_MATCHERS_COLUMNS 7
+#define AUTOMATON_STATES_ROWS 9
+#define CHARACTER_MATCHERS_COLUMNS 8
 
 struct _Buffer;
 struct _Automaton;
@@ -85,6 +85,7 @@ CharacterStateMatcher *CharacterStateMatcherService__getCharacterStateMatchers()
     char zeroAndOne[] = {'0', '1'};
     char fromTwoToNine[] = {'2', '3', '4', '5', '6', '7', '8', '9'};
     char b[] = {'B'};
+    char centinel[] = {CENTINEL};
     char others[] = {};
     char fdt[] = {FDT};
 
@@ -92,8 +93,9 @@ CharacterStateMatcher *CharacterStateMatcherService__getCharacterStateMatchers()
     CharacterStateMatcher__init(2, zeroAndOne);
     CharacterStateMatcher__init(3, fromTwoToNine);
     CharacterStateMatcher__init(4, b);
-    CharacterStateMatcher__init(5, others);
-    CharacterStateMatcher__init(6, fdt);
+    CharacterStateMatcher__init(5, centinel);
+    CharacterStateMatcher__init(6, others);
+    CharacterStateMatcher__init(7, fdt);
 
     return characterStateMatchers;
 };
@@ -115,98 +117,117 @@ State **AutomatonTableService__getTable() {
     }
 
     /*
-     * Rows: 8 Columns: 7
-     *       0            1        2     3    4     5      6
-     * +------------+-----------+-----+-----+---+-------+-----+
-     * |    AFD     | . (punto) | 0-1 | 2-9 | B | Otros | FDT |
-     * +------------+-----------+-----+-----+---+-------+-----+
-     * | 0-         |         6 |   1 |   6 | 5 |     6 |   7 |     0
-     * | 1          |         2 |   4 |   6 | 5 |     6 |   7 |     1
-     * | 2          |         6 |   3 |   3 | 6 |     6 |   7 |     2
-     * | 3          |         6 |   5 |   5 | 6 |     6 |   7 |     3
-     * | 4          |         6 |   4 |   6 | 5 |     6 |   7 |     4
-     * | 5+         |           |     |     |   |       |     |     5
-     * | 6(rechazo) |         6 |   6 |   6 | 6 |     6 |   7 |     6
-     * | 7(fdt)     |           |     |     |   |       |     |     7
-     * +------------+-----------+-----+-----+---+-------+-----+
+     * Rows: 9 - Columns: 8
+     *
+     *       0             1       2     3    4   5     6      7
+     * +------------+-----------+-----+-----+---+---+-------+-----+
+     * |    AFD     | . (punto) | 0-1 | 2-9 | B | % | Otros | FDT |
+     * +------------+-----------+-----+-----+---+---+-------+-----+
+     * | 0-         |         7 |   1 |   7 | 5 | 0 |     7 |   8 |     0
+     * | 1          |         2 |   4 |   7 | 5 | 0 |     7 |   8 |     1
+     * | 2          |         7 |   3 |   3 | 7 | 0 |     7 |   8 |     2
+     * | 3          |         7 |   5 |   5 | 7 | 0 |     7 |   8 |     3
+     * | 4          |         7 |   4 |   7 | 5 | 0 |     7 |   8 |     4
+     * | 5          |         7 |   7 |   7 | 7 | 6 |     7 |   8 |     5
+     * | 6+         |         7 |   1 |   7 | 5 | 0 |     7 |   8 |     6
+     * | 7(Rechazo) |         7 |   7 |   7 | 7 | 0 |     7 |   8 |     7
+     * | 8(fdt)     |           |     |     |   |   |       |     |     8
+     * +------------+-----------+-----+-----+---+---+-------+-----+
      */
 
     State nullState = {.stateProperty = NULL_STATE};
-    State initialState = {.id = 0, .stateProperty = INITIAL};
+    State state0 = {.id = 0, .stateProperty = INITIAL};
     State state1 = {.id = 1, .stateProperty = NONE};
     State state2 = {.id = 2, .stateProperty = NONE};
     State state3 = {.id = 3, .stateProperty = NONE};
     State state4 = {.id = 4, .stateProperty = NONE};
-    State state5 = {.id = 5, .stateProperty = FINAL};
-    State state6 = {.id = 6, .stateProperty = REJECTION};
-    State state7 = {.id = 7, .stateProperty = END_OF_TEXT};
+    State state5 = {.id = 5, .stateProperty = NONE};
+    State state6 = {.id = 6, .stateProperty = FINAL};
+    State state7 = {.id = 7, .stateProperty = REJECTION};
+    State state8 = {.id = 8, .stateProperty = END_OF_TEXT};
 
     //Hardcoded table with first column as all possible states for informative purposes
-    automatonTable[0][0] = initialState;
-    automatonTable[1][0] = state1;
-    automatonTable[2][0] = state2;
-    automatonTable[3][0] = state3;
-    automatonTable[4][0] = state4;
-    automatonTable[5][0] = state5;
-    automatonTable[6][0] = state6;
-    automatonTable[7][0] = state7;
 
-    //ROW 0          6 |   1 |   6 | 5 |     6 |   7
-    automatonTable[0][1] = state6;
-    automatonTable[0][2] = state1;
-    automatonTable[0][3] = state6;
-    automatonTable[0][4] = state5;
-    automatonTable[0][5] = state6;
-    automatonTable[0][6] = state7;
-    //ROW 1          2 |   4 |   6 | 5 |     6 |   7
-    automatonTable[1][1] = state2;
-    automatonTable[1][2] = state4;
-    automatonTable[1][3] = state6;
-    automatonTable[1][4] = state5;
-    automatonTable[1][5] = state6;
-    automatonTable[1][6] = state7;
-    //ROW 2          6 |   3 |   3 | 6 |     6 |   7
-    automatonTable[2][1] = state6;
+    //ROW 0 ['7', '1', '7', '5', '0', '7', '8']
+    automatonTable[0][0] = state7;
+    automatonTable[0][1] = state1;
+    automatonTable[0][2] = state7;
+    automatonTable[0][3] = state5;
+    automatonTable[0][4] = state0;
+    automatonTable[0][5] = state7;
+    automatonTable[0][6] = state8;
+
+    //ROW 1 ['2', '4', '7', '5', '0', '7', '8']
+    automatonTable[1][0] = state2;
+    automatonTable[1][1] = state4;
+    automatonTable[1][2] = state7;
+    automatonTable[1][3] = state5;
+    automatonTable[1][4] = state0;
+    automatonTable[1][5] = state7;
+    automatonTable[1][6] = state8;
+
+    //ROW 2 ['7', '3', '3', '7', '0', '7', '8']
+    automatonTable[2][0] = state7;
+    automatonTable[2][1] = state3;
     automatonTable[2][2] = state3;
-    automatonTable[2][3] = state3;
-    automatonTable[2][4] = state6;
-    automatonTable[2][5] = state6;
-    automatonTable[2][6] = state7;
-    //ROW 3          6 |   5 |   5 | 6 |     6 |   7
-    automatonTable[3][1] = state6;
+    automatonTable[2][3] = state7;
+    automatonTable[2][4] = state0;
+    automatonTable[2][5] = state7;
+    automatonTable[2][6] = state8;
+
+    //ROW 3 ['7', '5', '5', '7', '0', '7', '8']
+    automatonTable[3][0] = state7;
+    automatonTable[3][1] = state5;
     automatonTable[3][2] = state5;
-    automatonTable[3][3] = state5;
-    automatonTable[3][4] = state6;
-    automatonTable[3][5] = state6;
-    automatonTable[3][6] = state7;
-    //ROW 4          6 |   4 |   6 | 5 |     6 |   7
-    automatonTable[4][1] = state6;
-    automatonTable[4][2] = state4;
-    automatonTable[4][3] = state6;
-    automatonTable[4][4] = state5;
-    automatonTable[4][5] = state6;
-    automatonTable[4][6] = state7;
-    //ROW 5
-    automatonTable[5][1] = nullState;
-    automatonTable[5][2] = nullState;
-    automatonTable[5][3] = nullState;
-    automatonTable[5][4] = nullState;
-    automatonTable[5][5] = nullState;
-    automatonTable[5][6] = nullState;
-    //ROW 6          6 |   6 |   6 | 6 |     6 |   7
-    automatonTable[6][1] = state6;
-    automatonTable[6][2] = state6;
-    automatonTable[6][3] = state6;
-    automatonTable[6][4] = state6;
-    automatonTable[6][5] = state6;
-    automatonTable[6][6] = state7;
-    //ROW 7
-    automatonTable[7][1] = nullState;
-    automatonTable[7][2] = nullState;
-    automatonTable[7][3] = nullState;
-    automatonTable[7][4] = nullState;
-    automatonTable[7][5] = nullState;
-    automatonTable[7][6] = nullState;
+    automatonTable[3][3] = state7;
+    automatonTable[3][4] = state0;
+    automatonTable[3][5] = state7;
+    automatonTable[3][6] = state8;
+
+    //ROW 4 ['7', '4', '7', '5', '0', '7', '8']
+    automatonTable[4][0] = state7;
+    automatonTable[4][1] = state4;
+    automatonTable[4][2] = state7;
+    automatonTable[4][3] = state5;
+    automatonTable[4][4] = state0;
+    automatonTable[4][5] = state7;
+    automatonTable[4][6] = state8;
+
+    //ROW 5 ['7', '7', '7', '7', '6', '7', '8']
+    automatonTable[5][0] = state7;
+    automatonTable[5][1] = state7;
+    automatonTable[5][2] = state7;
+    automatonTable[5][3] = state7;
+    automatonTable[5][4] = state6;
+    automatonTable[5][5] = state7;
+    automatonTable[5][6] = state8;
+
+    //ROW 6 ['7', '1', '7', '5', '0', '7', '8']
+    automatonTable[6][0] = state7;
+    automatonTable[6][1] = state1;
+    automatonTable[6][2] = state7;
+    automatonTable[6][3] = state5;
+    automatonTable[6][4] = state0;
+    automatonTable[6][5] = state7;
+    automatonTable[6][6] = state8;
+
+    //ROW 7 ['7', '7', '7', '7', '0', '7', '8']
+    automatonTable[7][0] = state7;
+    automatonTable[7][1] = state7;
+    automatonTable[7][2] = state7;
+    automatonTable[7][3] = state7;
+    automatonTable[7][4] = state0;
+    automatonTable[7][5] = state7;
+    automatonTable[7][6] = state8;
+
+    //ROW 8 ['', '', '', '', '', '', '']
+    automatonTable[8][0] = nullState;
+    automatonTable[8][1] = nullState;
+    automatonTable[8][2] = nullState;
+    automatonTable[8][3] = nullState;
+    automatonTable[8][4] = nullState;
+    automatonTable[8][5] = nullState;
+    automatonTable[8][6] = nullState;
 
     return automatonTable;
 }
@@ -391,22 +412,23 @@ int main() {
             //TODO: Si hay error, debo leer hasta el proximo % o fdt. Tiro la basura.
             while (stateIsNotFinalNorFDT(automaton) && textCharacter != CENTINEL) {
                 automaton.determineCurrentState(&automaton, textCharacter); // (2.1) Determinar el nuevo estado actual
-                //TODO: Fixear el bucle infinito
-                /*    prettyPrinter.append(textCharacter); //esto agrega el %.
-                    textCharacter = buffer.fetchNextCharacter(&buffer); // (2.2) Actualizar el carácter a analizar
-                }
-                if (Automaton.actualStateIsFinal()) { // (3) Si el estado es final, la cadena procesada es una constante entera;
-                    //Deprecado en favor de pretty print <- buffer.print(); // o hacer un buffer.getAll() con un %s.
-                    printf("¡La cadena pertenece al lenguaje!\n");
-                    prettyPrinter.persistString(); //en teoria contiene al %. Debo volarlo si esta al persistirlo.
-                    //TODO: como me traje un 0, debe retornarlo al buffer. Esta en textCharacter.
-                    buffer.push(&buffer, textCharacter);
-                    //PP <- buffer.clean();
-                } else { // caso contrario, la cadena no pertenece al lenguaje.
-                    printf("La cadena no pertenece al lenguaje.\n");
-                    prettyPrinter.flush();
-                    //PP <- buffer.clean(); se caga el resto. No usar.*/
+                //prettyPrinter.append(textCharacter); //esto agrega el %.
+                textCharacter = buffer.fetchNextCharacter(&buffer); // (2.2) Actualizar el carácter a analizar
             }
+
+            /*if (automaton.actualStateIsFinal()) { // (3) Si el estado es final, la cadena procesada es una constante entera;
+                //Deprecado en favor de pretty print <- buffer.print(); // o hacer un buffer.getAll() con un %s.
+                printf("¡La cadena pertenece al lenguaje!\n");
+                prettyPrinter.persistString(); //en teoria contiene al %. Debo volarlo si esta al persistirlo.
+                //TODO: como me traje un 0, debe retornarlo al buffer. Esta en textCharacter.
+                buffer.push(&buffer, textCharacter);
+                //PP <- buffer.clean();
+            } else { // caso contrario, la cadena no pertenece al lenguaje.
+                printf("La cadena no pertenece al lenguaje.\n");
+                prettyPrinter.flush();
+                //PP <- buffer.clean(); se caga el resto. No usar.
+            }*/
+            //TODO: Fixear el bucle infinito
             printf("LOL\n");
             //break;
         }
