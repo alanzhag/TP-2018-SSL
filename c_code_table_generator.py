@@ -25,6 +25,6 @@ for index, row in df.iterrows():
     print row_line.substitute(index=index, row=list(row)[1:])
     for sub_index, data in enumerate(row[1:]):
         _row = index
-        _col = sub_index
+        _col = sub_index + 1
         _sid = data
         print code_line.substitute(row=_row, col=_col, sid=_sid)

@@ -20,6 +20,8 @@ struct _CharacterStateMatcher;
 
 bool stateIsNotFinalNorFDT(struct _Automaton automaton);
 
+bool actualStateIsFinal(struct _Automaton automaton);
+
 bool askForAnotherLexicalCheck();
 
 char *requestStringInputToCheck();
@@ -41,12 +43,12 @@ typedef int (*Match)(struct _CharacterStateMatcher *self, char characterToMatch)
 
 typedef struct _CharacterStateMatcher {
     int column;
-    const char *charactersToMatch;
+    char *charactersToMatch;
     Match match;
 } CharacterStateMatcher;
 
 int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMatch) {
-    const char *charactersToMatch = self->charactersToMatch;
+    char *charactersToMatch = self->charactersToMatch;
     size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
 
     if (lengthOfMatchableCharacters == 0) {
@@ -62,7 +64,24 @@ int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMa
     return NO_MATCH;
 }
 
-CharacterStateMatcher CharacterStateMatcher__init(int column, const char *charactersToMatch) {
+int CharacterStateMatcher__otherMatch(CharacterStateMatcher *self, char characterToMatch) {
+    char *charactersToMatch = self->charactersToMatch;
+    size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
+
+    if (characterToMatch == FDT) { //Por las dudas
+        return NO_MATCH;
+    }
+
+    for (int i = 0; i < lengthOfMatchableCharacters; i++) {
+        if (charactersToMatch[i] == characterToMatch) {
+            return NO_MATCH;
+        }
+    }
+
+    return self->column;
+}
+
+CharacterStateMatcher CharacterStateMatcher__init(int column, char *charactersToMatch) {
     CharacterStateMatcher characterStateMatcher = {
             .match = CharacterStateMatcher__match,
             .charactersToMatch = charactersToMatch,
@@ -79,23 +98,30 @@ typedef struct _CharacterStateMatcherService {
 } CharacterStateMatcherService;
 
 CharacterStateMatcher *CharacterStateMatcherService__getCharacterStateMatchers() {
-    CharacterStateMatcher *characterStateMatchers = malloc(CHARACTER_MATCHERS_COLUMNS * sizeof(CharacterStateMatcher));
+    CharacterStateMatcher *characterStateMatchers = malloc(
+            (CHARACTER_MATCHERS_COLUMNS - 1) * sizeof(CharacterStateMatcher));
 
-    char dot[] = {'.'};
-    char zeroAndOne[] = {'0', '1'};
-    char fromTwoToNine[] = {'2', '3', '4', '5', '6', '7', '8', '9'};
-    char b[] = {'B'};
+    char dot[] = ".";
+    char zeroAndOne[] = "01";
+    char fromTwoToNine[] = "23456789";
+    char b[] = "B";
     char centinel[] = {CENTINEL};
-    char others[] = {};
+    char others[] = ".0123456789B%";
     char fdt[] = {FDT};
 
-    CharacterStateMatcher__init(1, dot);
-    CharacterStateMatcher__init(2, zeroAndOne);
-    CharacterStateMatcher__init(3, fromTwoToNine);
-    CharacterStateMatcher__init(4, b);
-    CharacterStateMatcher__init(5, centinel);
-    CharacterStateMatcher__init(6, others);
-    CharacterStateMatcher__init(7, fdt);
+    CharacterStateMatcher otherMatcher = {
+            .column = 6,
+            .charactersToMatch = others,
+            .match = CharacterStateMatcher__otherMatch
+    };
+
+    characterStateMatchers[0] = CharacterStateMatcher__init(1, dot);
+    characterStateMatchers[1] = CharacterStateMatcher__init(2, zeroAndOne);
+    characterStateMatchers[2] = CharacterStateMatcher__init(3, fromTwoToNine);
+    characterStateMatchers[3] = CharacterStateMatcher__init(4, b);
+    characterStateMatchers[4] = CharacterStateMatcher__init(5, centinel);
+    characterStateMatchers[5] = otherMatcher;
+    characterStateMatchers[6] = CharacterStateMatcher__init(7, fdt);
 
     return characterStateMatchers;
 };
@@ -128,7 +154,7 @@ State **AutomatonTableService__getTable() {
      * | 2          |         7 |   3 |   3 | 7 | 0 |     7 |   8 |     2
      * | 3          |         7 |   5 |   5 | 7 | 0 |     7 |   8 |     3
      * | 4          |         7 |   4 |   7 | 5 | 0 |     7 |   8 |     4
-     * | 5          |         7 |   7 |   7 | 7 | 6 |     7 |   8 |     5
+     * | 5          |         7 |   7 |   7 | 7 | 6 |     7 |   6 |     5
      * | 6+         |         7 |   1 |   7 | 5 | 0 |     7 |   8 |     6
      * | 7(Rechazo) |         7 |   7 |   7 | 7 | 0 |     7 |   8 |     7
      * | 8(fdt)     |           |     |     |   |   |       |     |     8
@@ -149,85 +175,85 @@ State **AutomatonTableService__getTable() {
     //Hardcoded table with first column as all possible states for informative purposes
 
     //ROW 0 ['7', '1', '7', '5', '0', '7', '8']
-    automatonTable[0][0] = state7;
-    automatonTable[0][1] = state1;
-    automatonTable[0][2] = state7;
-    automatonTable[0][3] = state5;
-    automatonTable[0][4] = state0;
-    automatonTable[0][5] = state7;
-    automatonTable[0][6] = state8;
+    automatonTable[0][1] = state7;
+    automatonTable[0][2] = state1;
+    automatonTable[0][3] = state7;
+    automatonTable[0][4] = state5;
+    automatonTable[0][5] = state0;
+    automatonTable[0][6] = state7;
+    automatonTable[0][7] = state8;
 
     //ROW 1 ['2', '4', '7', '5', '0', '7', '8']
-    automatonTable[1][0] = state2;
-    automatonTable[1][1] = state4;
-    automatonTable[1][2] = state7;
-    automatonTable[1][3] = state5;
-    automatonTable[1][4] = state0;
-    automatonTable[1][5] = state7;
-    automatonTable[1][6] = state8;
+    automatonTable[1][1] = state2;
+    automatonTable[1][2] = state4;
+    automatonTable[1][3] = state7;
+    automatonTable[1][4] = state5;
+    automatonTable[1][5] = state0;
+    automatonTable[1][6] = state7;
+    automatonTable[1][7] = state8;
 
     //ROW 2 ['7', '3', '3', '7', '0', '7', '8']
-    automatonTable[2][0] = state7;
-    automatonTable[2][1] = state3;
+    automatonTable[2][1] = state7;
     automatonTable[2][2] = state3;
-    automatonTable[2][3] = state7;
-    automatonTable[2][4] = state0;
-    automatonTable[2][5] = state7;
-    automatonTable[2][6] = state8;
+    automatonTable[2][3] = state3;
+    automatonTable[2][4] = state7;
+    automatonTable[2][5] = state0;
+    automatonTable[2][6] = state7;
+    automatonTable[2][7] = state8;
 
     //ROW 3 ['7', '5', '5', '7', '0', '7', '8']
-    automatonTable[3][0] = state7;
-    automatonTable[3][1] = state5;
+    automatonTable[3][1] = state7;
     automatonTable[3][2] = state5;
-    automatonTable[3][3] = state7;
-    automatonTable[3][4] = state0;
-    automatonTable[3][5] = state7;
-    automatonTable[3][6] = state8;
+    automatonTable[3][3] = state5;
+    automatonTable[3][4] = state7;
+    automatonTable[3][5] = state0;
+    automatonTable[3][6] = state7;
+    automatonTable[3][7] = state8;
 
     //ROW 4 ['7', '4', '7', '5', '0', '7', '8']
-    automatonTable[4][0] = state7;
-    automatonTable[4][1] = state4;
-    automatonTable[4][2] = state7;
-    automatonTable[4][3] = state5;
-    automatonTable[4][4] = state0;
-    automatonTable[4][5] = state7;
-    automatonTable[4][6] = state8;
+    automatonTable[4][1] = state7;
+    automatonTable[4][2] = state4;
+    automatonTable[4][3] = state7;
+    automatonTable[4][4] = state5;
+    automatonTable[4][5] = state0;
+    automatonTable[4][6] = state7;
+    automatonTable[4][7] = state8;
 
-    //ROW 5 ['7', '7', '7', '7', '6', '7', '8']
-    automatonTable[5][0] = state7;
+    //ROW 5 ['7', '7', '7', '7', '6', '7', '6']
     automatonTable[5][1] = state7;
     automatonTable[5][2] = state7;
     automatonTable[5][3] = state7;
-    automatonTable[5][4] = state6;
-    automatonTable[5][5] = state7;
-    automatonTable[5][6] = state8;
+    automatonTable[5][4] = state7;
+    automatonTable[5][5] = state6;
+    automatonTable[5][6] = state7;
+    automatonTable[5][7] = state6;
 
     //ROW 6 ['7', '1', '7', '5', '0', '7', '8']
-    automatonTable[6][0] = state7;
-    automatonTable[6][1] = state1;
-    automatonTable[6][2] = state7;
-    automatonTable[6][3] = state5;
-    automatonTable[6][4] = state0;
-    automatonTable[6][5] = state7;
-    automatonTable[6][6] = state8;
+    automatonTable[6][1] = state7;
+    automatonTable[6][2] = state1;
+    automatonTable[6][3] = state7;
+    automatonTable[6][4] = state5;
+    automatonTable[6][5] = state0;
+    automatonTable[6][6] = state7;
+    automatonTable[6][7] = state8;
 
     //ROW 7 ['7', '7', '7', '7', '0', '7', '8']
-    automatonTable[7][0] = state7;
     automatonTable[7][1] = state7;
     automatonTable[7][2] = state7;
     automatonTable[7][3] = state7;
-    automatonTable[7][4] = state0;
-    automatonTable[7][5] = state7;
-    automatonTable[7][6] = state8;
+    automatonTable[7][4] = state7;
+    automatonTable[7][5] = state0;
+    automatonTable[7][6] = state7;
+    automatonTable[7][7] = state8;
 
     //ROW 8 ['', '', '', '', '', '', '']
-    automatonTable[8][0] = nullState;
     automatonTable[8][1] = nullState;
     automatonTable[8][2] = nullState;
     automatonTable[8][3] = nullState;
     automatonTable[8][4] = nullState;
     automatonTable[8][5] = nullState;
     automatonTable[8][6] = nullState;
+    automatonTable[8][7] = nullState;
 
     return automatonTable;
 }
@@ -240,13 +266,12 @@ typedef State (*GetInitialState)(struct _AutomatonTable *self);
 
 typedef struct _AutomatonTable {
     State **table;
-    CharacterStateMatcher *characterStateMatchers;
+    const CharacterStateMatcher *characterStateMatchers;
     GetInitialState getInitialState;
     MakeTransitionFromState makeTransitionFromState;
 } AutomatonTable;
 
 State AutomatonTable__getInitialState(AutomatonTable *self) {
-    //TODO: Puedo leer la columna 0 para ver los estados.
     State **table = self->table;
     for (int i = 0; i < AUTOMATON_STATES_ROWS; i++) {
         State currentState = table[i][0];
@@ -259,11 +284,12 @@ State AutomatonTable__getInitialState(AutomatonTable *self) {
 
 State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state, char character) {
     State arrivalState = {};
+    self->characterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers();
 
     for (int i = 0; i < CHARACTER_MATCHERS_COLUMNS; i++) {
         CharacterStateMatcher matcher = self->characterStateMatchers[i];
         if (matcher.match(&matcher, character) != NO_MATCH) {
-            arrivalState = self->table[state.id][matcher.column];
+            return self->table[state.id][matcher.column];
         }
     }
 
@@ -399,7 +425,7 @@ int main() {
             .automatonTable = automatonTable};
 
     do {
-
+        //TODO: Arreglar bug de characterStateMatchers que desaparecen
         buffer.input = requestStringInputToCheck();
         char textCharacter = buffer.fetchNextCharacter(&buffer);
         //TODO:diferenciar FDT del centinela.
@@ -410,24 +436,24 @@ int main() {
             automaton.setActualStateToInitialState(&automaton); // (1) Estado actual del autómata: estado inicial
             // (2) Mientras no sea un estado final y no sea el estado FDT, repetir
             //TODO: Si hay error, debo leer hasta el proximo % o fdt. Tiro la basura.
-            while (stateIsNotFinalNorFDT(automaton) && textCharacter != CENTINEL) {
+            while (stateIsNotFinalNorFDT(automaton)) {
                 automaton.determineCurrentState(&automaton, textCharacter); // (2.1) Determinar el nuevo estado actual
                 //prettyPrinter.append(textCharacter); //esto agrega el %.
                 textCharacter = buffer.fetchNextCharacter(&buffer); // (2.2) Actualizar el carácter a analizar
             }
-
-            /*if (automaton.actualStateIsFinal()) { // (3) Si el estado es final, la cadena procesada es una constante entera;
+            // (3) Si el estado es final, la cadena procesada es una constante entera;
+            if (actualStateIsFinal(automaton)) {
                 //Deprecado en favor de pretty print <- buffer.print(); // o hacer un buffer.getAll() con un %s.
                 printf("¡La cadena pertenece al lenguaje!\n");
-                prettyPrinter.persistString(); //en teoria contiene al %. Debo volarlo si esta al persistirlo.
+                //prettyPrinter.persistString(); //en teoria contiene al %. Debo volarlo si esta al persistirlo.
                 //TODO: como me traje un 0, debe retornarlo al buffer. Esta en textCharacter.
                 buffer.push(&buffer, textCharacter);
                 //PP <- buffer.clean();
             } else { // caso contrario, la cadena no pertenece al lenguaje.
                 printf("La cadena no pertenece al lenguaje.\n");
-                prettyPrinter.flush();
+                //prettyPrinter.flush();
                 //PP <- buffer.clean(); se caga el resto. No usar.
-            }*/
+            }
             //TODO: Fixear el bucle infinito
             printf("LOL\n");
             //break;
@@ -444,6 +470,10 @@ int main() {
 bool stateIsNotFinalNorFDT(Automaton automaton) {
     StateProperty stateProperty = automaton.actualState.stateProperty;
     return stateProperty != FINAL && stateProperty != END_OF_TEXT;
+}
+
+bool actualStateIsFinal(Automaton automaton) {
+    return automaton.actualState.stateProperty == FINAL;
 }
 
 bool askForAnotherLexicalCheck() {
