@@ -43,12 +43,12 @@ typedef int (*Match)(struct _CharacterStateMatcher *self, char characterToMatch)
 
 typedef struct _CharacterStateMatcher {
     int column;
-    char *charactersToMatch;
+    const char *charactersToMatch;
     Match match;
 } CharacterStateMatcher;
 
 int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMatch) {
-    char *charactersToMatch = self->charactersToMatch;
+    const char *charactersToMatch = self->charactersToMatch;
     size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
 
     if (lengthOfMatchableCharacters == 0) {
@@ -65,7 +65,7 @@ int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMa
 }
 
 int CharacterStateMatcher__otherMatch(CharacterStateMatcher *self, char characterToMatch) {
-    char *charactersToMatch = self->charactersToMatch;
+    const char *charactersToMatch = self->charactersToMatch;
     size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
 
     if (characterToMatch == FDT) { //Por las dudas
@@ -81,7 +81,7 @@ int CharacterStateMatcher__otherMatch(CharacterStateMatcher *self, char characte
     return self->column;
 }
 
-CharacterStateMatcher CharacterStateMatcher__init(int column, char *charactersToMatch) {
+CharacterStateMatcher CharacterStateMatcher__init(int column, const char *charactersToMatch) {
     CharacterStateMatcher characterStateMatcher = {
             .match = CharacterStateMatcher__match,
             .charactersToMatch = charactersToMatch,
@@ -98,8 +98,9 @@ typedef struct _CharacterStateMatcherService {
 } CharacterStateMatcherService;
 
 CharacterStateMatcher *CharacterStateMatcherService__getCharacterStateMatchers() {
-    CharacterStateMatcher *characterStateMatchers = malloc(
-            (CHARACTER_MATCHERS_COLUMNS - 1) * sizeof(CharacterStateMatcher));
+    //CharacterStateMatcher *characterStateMatchers = malloc((CHARACTER_MATCHERS_COLUMNS - 1) * sizeof(CharacterStateMatcher));
+    CharacterStateMatcher *characterStateMatchers = calloc(CHARACTER_MATCHERS_COLUMNS - 1,
+                                                           sizeof(CharacterStateMatcher));
 
     char dot[] = ".";
     char zeroAndOne[] = "01";
@@ -137,9 +138,11 @@ typedef struct _AutomatonTableService {
 State **AutomatonTableService__getTable() {
     State **automatonTable;
 
-    automatonTable = malloc(AUTOMATON_STATES_ROWS * sizeof(State *));
+    //automatonTable = malloc(AUTOMATON_STATES_ROWS * sizeof(State *));
+    automatonTable = calloc(AUTOMATON_STATES_ROWS, sizeof(State *));
     for (int i = 0; i < AUTOMATON_STATES_ROWS; i++) {
-        automatonTable[i] = malloc(CHARACTER_MATCHERS_COLUMNS * sizeof(State));
+        //automatonTable[i] = malloc(CHARACTER_MATCHERS_COLUMNS * sizeof(State));
+        automatonTable[i] = calloc(CHARACTER_MATCHERS_COLUMNS, sizeof(State));
     }
 
     /*
@@ -284,7 +287,7 @@ State AutomatonTable__getInitialState(AutomatonTable *self) {
 
 State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state, char character) {
     State arrivalState = {};
-    self->characterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers();
+    //self->characterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers(); //TODO: esto no!
 
     for (int i = 0; i < CHARACTER_MATCHERS_COLUMNS; i++) {
         CharacterStateMatcher matcher = self->characterStateMatchers[i];
@@ -316,7 +319,7 @@ void Automaton__setActualStateToInitialState(Automaton *self) {
 
 void Automaton__determineCurrentState(Automaton *self, char character) {
     AutomatonTable automatonTable = self->automatonTable;
-    State resultState = automatonTable.makeTransitionFromState(&automatonTable, self->actualState, character);
+    State resultState = automatonTable.makeTransitionFromState(&automatonTable, self->actualState, character); //Memleak
     self->actualState = resultState;
 }
 
@@ -335,12 +338,15 @@ typedef struct _Buffer {
     Push push;
 } Buffer;
 
-char Buffer__fetchNextCharacter(Buffer *self) { //TODO: si no tiene nada no puede fetchear y rompe.
+char Buffer__fetchNextCharacter(Buffer *self) {
+    //TODO: si no tiene nada no puede fetchear y rompe.
+    //TODO: anda para el culo. no termina achicando el buffer.
     char *wholeBufferInput = self->input;
     char nextCharacter = wholeBufferInput[0];
     size_t sizeOfInput = strlen(wholeBufferInput);
     if (sizeOfInput != 0) {
-        char *inputWithoutFirstCharacter = malloc(sizeOfInput - 1);
+        //char *inputWithoutFirstCharacter = malloc(sizeOfInput - 1);
+        char *inputWithoutFirstCharacter = calloc(sizeOfInput - 1, sizeof(char));
         memcpy(inputWithoutFirstCharacter, wholeBufferInput + 1, sizeOfInput - 1);
         self->clean(self);
         self->input = inputWithoutFirstCharacter;
@@ -356,7 +362,8 @@ void Buffer__clean(Buffer *self) {
 void Buffer__push(Buffer *self, char character) {
     char *wholeBufferInput = self->input;
     size_t sizeOfInput = strlen(wholeBufferInput);
-    char *inputWithPushedCharacterAtBeginning = malloc(sizeOfInput + 1);
+    //char *inputWithPushedCharacterAtBeginning = malloc(sizeOfInput + 1);
+    char *inputWithPushedCharacterAtBeginning = calloc(sizeOfInput + 1, sizeof(char));
     inputWithPushedCharacterAtBeginning[0] = character;
     memcpy(inputWithPushedCharacterAtBeginning + 1, wholeBufferInput, sizeOfInput);
     self->clean(self);
@@ -411,8 +418,8 @@ int main() {
             .getCharacterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers};
 
     AutomatonTable automatonTable = {
-            .table = automatonTableService.getTable(),
-            .characterStateMatchers = characterStateMatcherService.getCharacterStateMatchers(),
+            .table = automatonTableService.getTable(),//Memleak
+            .characterStateMatchers = characterStateMatcherService.getCharacterStateMatchers(),//Memleak
             .getInitialState = AutomatonTable__getInitialState,
             .makeTransitionFromState = AutomatonTable__makeTransitionFromState};
     Buffer buffer = {
@@ -432,6 +439,7 @@ int main() {
         //FDT para el buffer es un concepto. Responde indicando si le quedan caracteres por entregar.
         //El centinela, si lo encuentro, marca un corte.
         //TODO: ver que pasa si mando %%%%%%%%%%% (muchas "cadenas vacias")
+        //TODO: ver que pasa si mando 0100010101100B (muchas "cadenas vacias")
         while (textCharacter != FDT) { //- Mientras no sea fdt, repetir:
             automaton.setActualStateToInitialState(&automaton); // (1) Estado actual del autómata: estado inicial
             // (2) Mientras no sea un estado final y no sea el estado FDT, repetir
@@ -488,10 +496,11 @@ bool askForAnotherLexicalCheck() {
 char *requestStringInputToCheck() {
     int c;
     char *string;
-    string = malloc(sizeof(char));
+    //string = malloc(sizeof(char));
+    string = calloc(1, sizeof(char));
     string[0] = '\0';
     printf("Ingrese la cadena a analizar: ");
-    for (int i = 0; (c = getchar()) != '\n' && c != EOF; i++) {
+    for (int i = 0; (c = getchar()) != '\n' && c != EOF; i++) { //TODO: el getchar rompe structs
         string = realloc(string, (i + 2) * sizeof(char));
         string[i] = (char) c;
         string[i + 1] = FDT;
