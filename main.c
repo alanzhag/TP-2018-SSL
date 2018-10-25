@@ -6,15 +6,23 @@
 
 #define YES 'S'
 #define FDT '\0'
-#define CENTINEL '%'
 #define NO_MATCH (-1)
 #define AUTOMATON_STATES_ROWS 9
 #define CHARACTER_MATCHERS_COLUMNS 8
+#define CHARACTER_MATCHERS (CHARACTER_MATCHERS_COLUMNS - 1)
 
 struct _Buffer;
 struct _Automaton;
 struct _AutomatonTable;
 struct _CharacterStateMatcher;
+
+char dot[] = ".";
+char zeroAndOne[] = "01";
+char fromTwoToNine[] = "23456789";
+char b[] = "B";
+char centinel[] = "%";
+char others[] = ".0123456789B%";
+char fdt[] = {FDT};
 
 //Utils functions defined at bottom
 
@@ -49,9 +57,10 @@ typedef struct _CharacterStateMatcher {
 
 int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMatch) {
     const char *charactersToMatch = self->charactersToMatch;
+
     size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
 
-    if (lengthOfMatchableCharacters == 0) {
+    if (lengthOfMatchableCharacters == 0) {//fdt
         return self->column;
     }
 
@@ -87,44 +96,6 @@ CharacterStateMatcher CharacterStateMatcher__init(int column, const char *charac
             .charactersToMatch = charactersToMatch,
             .column = column};
     return characterStateMatcher;
-};
-
-//CharacterStateMatcherService
-
-typedef CharacterStateMatcher *(*GetCharacterStateMatchers)();
-
-typedef struct _CharacterStateMatcherService {
-    GetCharacterStateMatchers getCharacterStateMatchers;
-} CharacterStateMatcherService;
-
-CharacterStateMatcher *CharacterStateMatcherService__getCharacterStateMatchers() {
-    //CharacterStateMatcher *characterStateMatchers = malloc((CHARACTER_MATCHERS_COLUMNS - 1) * sizeof(CharacterStateMatcher));
-    CharacterStateMatcher *characterStateMatchers = calloc(CHARACTER_MATCHERS_COLUMNS - 1,
-                                                           sizeof(CharacterStateMatcher));
-
-    char dot[] = ".";
-    char zeroAndOne[] = "01";
-    char fromTwoToNine[] = "23456789";
-    char b[] = "B";
-    char centinel[] = {CENTINEL};
-    char others[] = ".0123456789B%";
-    char fdt[] = {FDT};
-
-    CharacterStateMatcher otherMatcher = {
-            .column = 6,
-            .charactersToMatch = others,
-            .match = CharacterStateMatcher__otherMatch
-    };
-
-    characterStateMatchers[0] = CharacterStateMatcher__init(1, dot);
-    characterStateMatchers[1] = CharacterStateMatcher__init(2, zeroAndOne);
-    characterStateMatchers[2] = CharacterStateMatcher__init(3, fromTwoToNine);
-    characterStateMatchers[3] = CharacterStateMatcher__init(4, b);
-    characterStateMatchers[4] = CharacterStateMatcher__init(5, centinel);
-    characterStateMatchers[5] = otherMatcher;
-    characterStateMatchers[6] = CharacterStateMatcher__init(7, fdt);
-
-    return characterStateMatchers;
 };
 
 //AutomatonTableService
@@ -269,7 +240,7 @@ typedef State (*GetInitialState)(struct _AutomatonTable *self);
 
 typedef struct _AutomatonTable {
     State **table;
-    const CharacterStateMatcher *characterStateMatchers;
+    CharacterStateMatcher *characterStateMatchers;
     GetInitialState getInitialState;
     MakeTransitionFromState makeTransitionFromState;
 } AutomatonTable;
@@ -289,7 +260,7 @@ State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state,
     State arrivalState = {};
     //self->characterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers(); //TODO: esto no!
 
-    for (int i = 0; i < CHARACTER_MATCHERS_COLUMNS; i++) {
+    for (int i = 0; i < CHARACTER_MATCHERS; i++) {
         CharacterStateMatcher matcher = self->characterStateMatchers[i];
         if (matcher.match(&matcher, character) != NO_MATCH) {
             return self->table[state.id][matcher.column];
@@ -298,6 +269,34 @@ State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state,
 
     return arrivalState;
 };
+
+//CharacterStateMatcherService
+
+typedef void *(*GetCharacterStateMatchers)(struct _AutomatonTable *automatonTable);
+
+typedef struct _CharacterStateMatcherService {
+    GetCharacterStateMatchers getCharacterStateMatchers;
+} CharacterStateMatcherService;
+
+void *CharacterStateMatcherService__getCharacterStateMatchers(struct _AutomatonTable *automatonTable) {
+    CharacterStateMatcher *characterStateMatchers = calloc(CHARACTER_MATCHERS, sizeof(CharacterStateMatcher));
+
+    CharacterStateMatcher otherMatcher = {
+            .column = 6,
+            .charactersToMatch = others,
+            .match = CharacterStateMatcher__otherMatch
+    };
+
+    characterStateMatchers[0] = CharacterStateMatcher__init(1, dot);
+    characterStateMatchers[1] = CharacterStateMatcher__init(2, zeroAndOne);
+    characterStateMatchers[2] = CharacterStateMatcher__init(3, fromTwoToNine);
+    characterStateMatchers[3] = CharacterStateMatcher__init(4, b);
+    characterStateMatchers[4] = CharacterStateMatcher__init(5, centinel);
+    characterStateMatchers[5] = otherMatcher;
+    characterStateMatchers[6] = CharacterStateMatcher__init(7, fdt);
+
+    automatonTable->characterStateMatchers = characterStateMatchers;
+}
 
 // Automaton
 
@@ -319,7 +318,8 @@ void Automaton__setActualStateToInitialState(Automaton *self) {
 
 void Automaton__determineCurrentState(Automaton *self, char character) {
     AutomatonTable automatonTable = self->automatonTable;
-    State resultState = automatonTable.makeTransitionFromState(&automatonTable, self->actualState, character); //Memleak
+    State resultState = automatonTable.makeTransitionFromState(&self->automatonTable, self->actualState,
+                                                               character); //Memleak
     self->actualState = resultState;
 }
 
@@ -419,9 +419,12 @@ int main() {
 
     AutomatonTable automatonTable = {
             .table = automatonTableService.getTable(),//Memleak
-            .characterStateMatchers = characterStateMatcherService.getCharacterStateMatchers(),//Memleak
+            //.characterStateMatchers = characterStateMatcherService.getCharacterStateMatchers(),//Memleak
             .getInitialState = AutomatonTable__getInitialState,
             .makeTransitionFromState = AutomatonTable__makeTransitionFromState};
+
+    characterStateMatcherService.getCharacterStateMatchers(&automatonTable);
+
     Buffer buffer = {
             .fetchNextCharacter = Buffer__fetchNextCharacter,
             .clean = Buffer__clean,
@@ -455,7 +458,7 @@ int main() {
                 printf("¡La cadena pertenece al lenguaje!\n");
                 //prettyPrinter.persistString(); //en teoria contiene al %. Debo volarlo si esta al persistirlo.
                 //TODO: como me traje un 0, debe retornarlo al buffer. Esta en textCharacter.
-                buffer.push(&buffer, textCharacter);
+                //buffer.push(&buffer, textCharacter);
                 //PP <- buffer.clean();
             } else { // caso contrario, la cadena no pertenece al lenguaje.
                 printf("La cadena no pertenece al lenguaje.\n");
@@ -471,6 +474,13 @@ int main() {
         //prettyPrinter.printResults()
         lexicalCheckRequired = askForAnotherLexicalCheck();
     } while (lexicalCheckRequired);
+
+    //Como el sol cuando amanece
+    free(automatonTable.characterStateMatchers);
+    for (int i = 0; i < AUTOMATON_STATES_ROWS; i++) {
+        free(automatonTable.table[i]);
+    }
+    free(automatonTable.table);
 
     return 0;
 }
