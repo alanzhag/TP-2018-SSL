@@ -21,7 +21,7 @@ char zeroAndOne[] = "01";
 char fromTwoToNine[] = "23456789";
 char b[] = "B";
 char centinel[] = "%";
-char others[] = ".0123456789B%";
+char othersShouldNotMatchThese[] = ".0123456789B%";
 char fdt[] = {FDT};
 
 //Utils functions defined at bottom
@@ -37,7 +37,7 @@ char *requestStringInputToCheck();
 //State
 
 typedef enum {
-    INITIAL, FINAL, END_OF_TEXT, REJECTION, NULL_STATE, NONE
+    INITIAL, FINAL, CENTINEL, END_OF_TEXT, REJECTION, NULL_STATE, NONE
 } StateProperty;
 
 typedef struct _State {
@@ -74,15 +74,15 @@ int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMa
 }
 
 int CharacterStateMatcher__otherMatch(CharacterStateMatcher *self, char characterToMatch) {
-    const char *charactersToMatch = self->charactersToMatch;
-    size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
+    const char *characterNotToMatch = self->charactersToMatch;
+    size_t lengthOfMatchableCharacters = strlen(characterNotToMatch);
 
-    if (characterToMatch == FDT) { //Por las dudas
+    if (characterToMatch == FDT) {
         return NO_MATCH;
     }
 
     for (int i = 0; i < lengthOfMatchableCharacters; i++) {
-        if (charactersToMatch[i] == characterToMatch) {
+        if (characterNotToMatch[i] == characterToMatch) {
             return NO_MATCH;
         }
     }
@@ -109,10 +109,8 @@ typedef struct _AutomatonTableService {
 State **AutomatonTableService__getTable() {
     State **automatonTable;
 
-    //automatonTable = malloc(AUTOMATON_STATES_ROWS * sizeof(State *));
     automatonTable = calloc(AUTOMATON_STATES_ROWS, sizeof(State *));
     for (int i = 0; i < AUTOMATON_STATES_ROWS; i++) {
-        //automatonTable[i] = malloc(CHARACTER_MATCHERS_COLUMNS * sizeof(State));
         automatonTable[i] = calloc(CHARACTER_MATCHERS_COLUMNS, sizeof(State));
     }
 
@@ -141,7 +139,7 @@ State **AutomatonTableService__getTable() {
     State state2 = {.id = 2, .stateProperty = NONE};
     State state3 = {.id = 3, .stateProperty = NONE};
     State state4 = {.id = 4, .stateProperty = NONE};
-    State state5 = {.id = 5, .stateProperty = NONE};
+    State state5 = {.id = 5, .stateProperty = CENTINEL};
     State state6 = {.id = 6, .stateProperty = FINAL};
     State state7 = {.id = 7, .stateProperty = REJECTION};
     State state8 = {.id = 8, .stateProperty = END_OF_TEXT};
@@ -258,7 +256,6 @@ State AutomatonTable__getInitialState(AutomatonTable *self) {
 
 State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state, char character) {
     State arrivalState = {};
-    //self->characterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers(); //TODO: esto no!
 
     for (int i = 0; i < CHARACTER_MATCHERS; i++) {
         CharacterStateMatcher matcher = self->characterStateMatchers[i];
@@ -281,11 +278,8 @@ typedef struct _CharacterStateMatcherService {
 void *CharacterStateMatcherService__getCharacterStateMatchers(struct _AutomatonTable *automatonTable) {
     CharacterStateMatcher *characterStateMatchers = calloc(CHARACTER_MATCHERS, sizeof(CharacterStateMatcher));
 
-    CharacterStateMatcher otherMatcher = {
-            .column = 6,
-            .charactersToMatch = others,
-            .match = CharacterStateMatcher__otherMatch
-    };
+    CharacterStateMatcher otherMatcher = CharacterStateMatcher__init(6, othersShouldNotMatchThese);
+    otherMatcher.match = CharacterStateMatcher__otherMatch;
 
     characterStateMatchers[0] = CharacterStateMatcher__init(1, dot);
     characterStateMatchers[1] = CharacterStateMatcher__init(2, zeroAndOne);
@@ -318,8 +312,7 @@ void Automaton__setActualStateToInitialState(Automaton *self) {
 
 void Automaton__determineCurrentState(Automaton *self, char character) {
     AutomatonTable automatonTable = self->automatonTable;
-    State resultState = automatonTable.makeTransitionFromState(&self->automatonTable, self->actualState,
-                                                               character); //Memleak
+    State resultState = automatonTable.makeTransitionFromState(&automatonTable, self->actualState, character);
     self->actualState = resultState;
 }
 
@@ -343,11 +336,12 @@ char Buffer__fetchNextCharacter(Buffer *self) {
     //TODO: anda para el culo. no termina achicando el buffer.
     char *wholeBufferInput = self->input;
     char nextCharacter = wholeBufferInput[0];
+
     size_t sizeOfInput = strlen(wholeBufferInput);
+
     if (sizeOfInput != 0) {
-        //char *inputWithoutFirstCharacter = malloc(sizeOfInput - 1);
-        char *inputWithoutFirstCharacter = calloc(sizeOfInput - 1, sizeof(char));
-        memcpy(inputWithoutFirstCharacter, wholeBufferInput + 1, sizeOfInput - 1);
+        char *inputWithoutFirstCharacter = calloc(sizeOfInput, sizeof(char));
+        memcpy(inputWithoutFirstCharacter, wholeBufferInput + 1, sizeOfInput);
         self->clean(self);
         self->input = inputWithoutFirstCharacter;
     }
@@ -362,10 +356,11 @@ void Buffer__clean(Buffer *self) {
 void Buffer__push(Buffer *self, char character) {
     char *wholeBufferInput = self->input;
     size_t sizeOfInput = strlen(wholeBufferInput);
-    //char *inputWithPushedCharacterAtBeginning = malloc(sizeOfInput + 1);
+
     char *inputWithPushedCharacterAtBeginning = calloc(sizeOfInput + 1, sizeof(char));
     inputWithPushedCharacterAtBeginning[0] = character;
     memcpy(inputWithPushedCharacterAtBeginning + 1, wholeBufferInput, sizeOfInput);
+
     self->clean(self);
     self->input = inputWithPushedCharacterAtBeginning;
 }
@@ -418,8 +413,7 @@ int main() {
             .getCharacterStateMatchers = CharacterStateMatcherService__getCharacterStateMatchers};
 
     AutomatonTable automatonTable = {
-            .table = automatonTableService.getTable(),//Memleak
-            //.characterStateMatchers = characterStateMatcherService.getCharacterStateMatchers(),//Memleak
+            .table = automatonTableService.getTable(), //Mem leak?
             .getInitialState = AutomatonTable__getInitialState,
             .makeTransitionFromState = AutomatonTable__makeTransitionFromState};
 
@@ -506,7 +500,6 @@ bool askForAnotherLexicalCheck() {
 char *requestStringInputToCheck() {
     int c;
     char *string;
-    //string = malloc(sizeof(char));
     string = calloc(1, sizeof(char));
     string[0] = '\0';
     printf("Ingrese la cadena a analizar: ");
