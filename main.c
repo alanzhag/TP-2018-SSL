@@ -10,6 +10,7 @@
 #define AUTOMATON_STATES_ROWS 9
 #define CHARACTER_MATCHERS_COLUMNS 8
 #define CHARACTER_MATCHERS (CHARACTER_MATCHERS_COLUMNS - 1)
+#define CENTINEL_CHARACTER '%'
 
 struct _Buffer;
 struct _Automaton;
@@ -21,7 +22,7 @@ char dot[] = ".";
 char zeroAndOne[] = "01";
 char fromTwoToNine[] = "23456789";
 char b[] = "B";
-char centinel[] = "%";
+char centinel[] = {CENTINEL_CHARACTER, FDT};
 char othersShouldNotMatchThese[] = ".0123456789B%";
 char fdt[] = {FDT};
 
@@ -30,6 +31,8 @@ char fdt[] = {FDT};
 bool stateIsNotFinalNorFDT(struct _Automaton automaton);
 
 bool actualStateIsFinal(struct _Automaton automaton);
+
+bool stateIsCentinel(struct _Automaton automaton);
 
 bool askForAnotherLexicalCheck();
 
@@ -393,6 +396,7 @@ typedef struct _PrettyPrinter {
     char *stringBuilder;
     char **persistedStrings;
     int persistedStringsQty;
+    int lastPersistedStringsQty;
     Append append;
     PersistString persistString;
     PrintResults printResults;
@@ -402,7 +406,8 @@ typedef struct _PrettyPrinter {
 } PrettyPrinter;
 
 void PrettyPrinter__append(PrettyPrinter *self, char characterToAppend) {
-    if (characterToAppend != FDT) {//TODO: extraer a variable el stringBuilder
+    if (characterToAppend != FDT &&
+        characterToAppend != CENTINEL_CHARACTER) {//TODO: extraer a variable el stringBuilder
         size_t positionToInsert = strlen(self->stringBuilder);
         self->stringBuilder = realloc(self->stringBuilder, (positionToInsert + 2) * sizeof(char));
         self->stringBuilder[positionToInsert] = characterToAppend;
@@ -412,29 +417,49 @@ void PrettyPrinter__append(PrettyPrinter *self, char characterToAppend) {
 
 void PrettyPrinter__persistString(PrettyPrinter *self) {
     //TODO: guardar un string cacheado
+
+    char *stringToPersist = self->stringBuilder;
+    int persistedStringsQty = self->persistedStringsQty;
+    char **persistedStrings = self->persistedStrings;
+
+    size_t sizeOfString = strlen(stringToPersist);
+
+    char *persistedString = calloc(sizeOfString + 1, sizeof(char));
+    strcpy(persistedString, stringToPersist);
+    persistedStrings[persistedStringsQty] = persistedString;
+    persistedStringsQty++;
+
+    char **biggerPersistedStrings = realloc(persistedStrings, (persistedStringsQty + 1) * sizeof(char *));
+    biggerPersistedStrings[persistedStringsQty] = "";
+
+    self->persistedStringsQty = persistedStringsQty;
+    self->persistedStrings = biggerPersistedStrings;
     self->flush(self);
-    self->persistedStringsQty++;
 }
 
 void PrettyPrinter__printResults(PrettyPrinter *self) {
     printf("-------Palabras encontradas-------\n");
     for (int i = 0; i < self->persistedStringsQty; i++) {
-        printf("%d. %s", i, self->persistedStrings[i]);
+        printf("%d. %s\n", i + 1, self->persistedStrings[i]);
     }
     printf("----------------------------------\n");
 }
 
 void PrettyPrinter__flush(PrettyPrinter *self) {
     //TODO: borrar string cacheada
+    self->stringBuilder = realloc(self->stringBuilder, 1 * sizeof(char));
+    self->stringBuilder[0] = FDT;
 }
 
 void PrettyPrinter__flushPersistence(PrettyPrinter *self) {
-    //TODO: borrar strings guardadas
+    self->flush(self);
+    self->lastPersistedStringsQty = self->persistedStringsQty;
+    self->persistedStringsQty = 0;
 }
 
 void PrettyPrinter__free(PrettyPrinter *self) {
     free(self->stringBuilder);
-    for (int i = 0; i < self->persistedStringsQty; i++) {
+    for (int i = 0; i < self->lastPersistedStringsQty; i++) {
         free(self->persistedStrings[i]);
     }
     free(self->persistedStrings);
@@ -513,6 +538,8 @@ int main() {
             .flush = PrettyPrinter__flush,
             .flushPersistence = PrettyPrinter__flushPersistence,
             .persistedStringsQty = 0,
+            .lastPersistedStringsQty = 0,
+            .persistedStrings = calloc(1, sizeof(char *)),
             .stringBuilder = calloc(1, sizeof(char))};
 
     do {
@@ -544,13 +571,13 @@ int main() {
         }
 
         buffer.bufferFree(&buffer);
-        //prettyPrinter.printResults(&prettyPrinter);
-        prettyPrinter.flushPersistence(&prettyPrinter);
+        prettyPrinter.printResults(&prettyPrinter);
+        prettyPrinter.flushPersistence(&prettyPrinter); //la tabla se renueva.
         lexicalCheckRequired = askForAnotherLexicalCheck();
     } while (lexicalCheckRequired);
 
     automatonTable.freeAutomatonTable(&automatonTable);
-    //prettyPrinter.prettyPrinterFree(&prettyPrinter);
+    prettyPrinter.prettyPrinterFree(&prettyPrinter);
 
     return 0;
 }
@@ -562,6 +589,11 @@ bool stateIsNotFinalNorFDT(Automaton automaton) {
 
 bool actualStateIsFinal(Automaton automaton) {
     return automaton.actualState.stateProperty == FINAL;
+}
+
+bool stateIsCentinel(Automaton automaton) {
+    StateProperty stateProperty = automaton.actualState.stateProperty;
+    return stateProperty == CENTINEL;
 }
 
 bool askForAnotherLexicalCheck() {
