@@ -236,7 +236,7 @@ State **AutomatonTableService__getTable() {
 
 // AutomatonTable
 
-typedef State (*MakeTransitionFromState)(struct _AutomatonTable *self, State state, char character); //TODO
+typedef State (*MakeTransitionFromState)(struct _AutomatonTable *self, State state, char character);
 
 typedef State (*GetInitialState)(struct _AutomatonTable *self);
 
@@ -274,7 +274,7 @@ State AutomatonTable__makeTransitionFromState(AutomatonTable *self, State state,
     return arrivalState;
 };
 
-void AutomatonTable__free(AutomatonTable *self) { //TODO: usar este metodo
+void AutomatonTable__free(AutomatonTable *self) {
     free(self->characterStateMatchers);
     for (int i = 0; i < AUTOMATON_STATES_ROWS; i++) {
         free(self->table[i]);
@@ -335,15 +335,12 @@ void Automaton__determineCurrentState(Automaton *self, char character) {
 
 typedef void (*BufferFree)(struct _Buffer *self);
 
-typedef void (*Push)(struct _Buffer *self, char character);
-
 typedef char (*FetchNextCharacter)(struct _Buffer *self);
 
 typedef struct _Buffer {
     char *input;
     FetchNextCharacter fetchNextCharacter;
     BufferFree bufferFree;
-    Push push;
 } Buffer;
 
 char Buffer__fetchNextCharacter(Buffer *self) {
@@ -364,18 +361,6 @@ char Buffer__fetchNextCharacter(Buffer *self) {
 
 void Buffer__free(Buffer *self) {
     free(self->input);
-}
-
-void Buffer__push(Buffer *self, char character) {
-    char *wholeBufferInput = self->input;
-    size_t sizeOfInput = strlen(wholeBufferInput);
-
-    char *inputWithPushedCharacterAtBeginning = calloc(sizeOfInput + 1, sizeof(char));
-    inputWithPushedCharacterAtBeginning[0] = character;
-    memcpy(inputWithPushedCharacterAtBeginning + 1, wholeBufferInput, sizeOfInput);
-
-    self->bufferFree(self);
-    self->input = inputWithPushedCharacterAtBeginning;
 }
 
 //PrettyPrinter
@@ -406,8 +391,7 @@ typedef struct _PrettyPrinter {
 } PrettyPrinter;
 
 void PrettyPrinter__append(PrettyPrinter *self, char characterToAppend) {
-    if (characterToAppend != FDT &&
-        characterToAppend != CENTINEL_CHARACTER) {//TODO: extraer a variable el stringBuilder
+    if (characterToAppend != FDT && characterToAppend != CENTINEL_CHARACTER) {
         size_t positionToInsert = strlen(self->stringBuilder);
         self->stringBuilder = realloc(self->stringBuilder, (positionToInsert + 2) * sizeof(char));
         self->stringBuilder[positionToInsert] = characterToAppend;
@@ -416,8 +400,6 @@ void PrettyPrinter__append(PrettyPrinter *self, char characterToAppend) {
 }
 
 void PrettyPrinter__persistString(PrettyPrinter *self) {
-    //TODO: guardar un string cacheado
-
     char *stringToPersist = self->stringBuilder;
     int persistedStringsQty = self->persistedStringsQty;
     char **persistedStrings = self->persistedStrings;
@@ -446,7 +428,6 @@ void PrettyPrinter__printResults(PrettyPrinter *self) {
 }
 
 void PrettyPrinter__flush(PrettyPrinter *self) {
-    //TODO: borrar string cacheada
     self->stringBuilder = realloc(self->stringBuilder, 1 * sizeof(char));
     self->stringBuilder[0] = FDT;
 }
@@ -522,8 +503,7 @@ int main() {
 
     Buffer buffer = {
             .fetchNextCharacter = Buffer__fetchNextCharacter,
-            .bufferFree = Buffer__free,
-            .push = Buffer__push};
+            .bufferFree = Buffer__free};
 
     Automaton automaton = {
             .setActualStateToInitialState = Automaton__setActualStateToInitialState,
@@ -543,11 +523,10 @@ int main() {
             .stringBuilder = calloc(1, sizeof(char))};
 
     do {
-        //TODO: Arreglar bug de characterStateMatchers que desaparecen
         buffer.input = requestStringInputToCheck();
         char textCharacter = buffer.fetchNextCharacter(&buffer);
         //TODO: ver que pasa si mando %%%%%%%%%%% (muchas "cadenas vacias")
-        //TODO: ver que pasa si mando 0100010101100B (muchas "cadenas vacias")
+        //TODO: ver que pasa si mando 0100010101100B
         while (textCharacter != FDT) { //- Mientras no sea fdt, repetir:
             automaton.setActualStateToInitialState(&automaton); // (1) Estado actual del autómata: estado inicial
             // (2) Mientras no sea un estado final y no sea el estado FDT, repetir
@@ -559,11 +538,8 @@ int main() {
             }
             // (3) Si el estado es final, la cadena procesada es una constante entera;
             if (actualStateIsFinal(automaton)) {
-                //Deprecado en favor de pretty print <- buffer.print(); // o hacer un buffer.getAll() con un %s.
                 printf("¡La cadena pertenece al lenguaje!\n");
                 prettyPrinter.persistString(&prettyPrinter); //en teoria contiene al %. Debo volarlo.
-                //TODO: como me traje un 0, debe retornarlo al buffer. Esta en textCharacter.
-                //buffer.push(&buffer, textCharacter);
             } else { // caso contrario, la cadena no pertenece al lenguaje.
                 printf("La cadena no pertenece al lenguaje.\n");
                 prettyPrinter.flush(&prettyPrinter);
@@ -572,7 +548,7 @@ int main() {
 
         buffer.bufferFree(&buffer);
         prettyPrinter.printResults(&prettyPrinter);
-        prettyPrinter.flushPersistence(&prettyPrinter); //la tabla se renueva.
+        prettyPrinter.flushPersistence(&prettyPrinter);
         lexicalCheckRequired = askForAnotherLexicalCheck();
     } while (lexicalCheckRequired);
 
