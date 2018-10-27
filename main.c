@@ -464,8 +464,7 @@ void PrettyPrinter__free(PrettyPrinter *self) {
  * caso contrario, la cadena no pertenece al lenguaje.
  *
  * ER: [01]\.[0-9]{2}|[01]*B Centinela: %
- * Reflexionando que pasa si el Automaton no tiene a donde ir por caracter desconocido. Si no agrego columnas
- * onda "otros" y fdt, deberia cortar y seguir sacando del buffer hasta el centinela.
+ *
  * +-----+-----------+-----+-----+---+
  * | AFD | . (punto) | 0-1 | 2-9 | B |
  * +-----+-----------+-----+-----+---+
@@ -477,17 +476,6 @@ void PrettyPrinter__free(PrettyPrinter *self) {
  * | 5+  |           |     |     |   |
  * +-----+-----------+-----+-----+---+
  *
- * Hipotesis de trabajo:
- * La cadena ingresad no va contener FDT. Se deduce fin de texto cuando el buffer se vacia.
- * Si el usuario ingresa una palabra con caracteres fuera del alfabeto de la ER, sacamos caracteres hasta el centinela.
- *
- *
- * -Estado inicial es unico? SI
- * -FDT en cadena de usuario. Es el \0.
- * -Uso del centinela.
- * -Cuando llegan caracteres que no pertenecen al lenguaje, que estado se toma? Corto hasta el centinela?
- *
- * Disruptivo: se crea el estado "Otros". Es un pozo hasta el centinela que tambien es otro estado.
  */
 
 int main() {

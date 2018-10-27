@@ -1,6 +1,9 @@
 # TP-2018-SSL
 
-## Tabla del AFD implementado
+### Tabla del AFD implementado
+
+> ER: \[01]\.\[0-9]{2}|\[01]*B
+> Centinela: %
 
 |    AFD     | . (punto) | 0-1 | 2-9 | B | % | Otros | FDT |
 |------------|-----------|-----|-----|---|---|-------|-----|
@@ -13,3 +16,11 @@
 | 6+         |         7 |   1 |   7 | 5 | 0 |     7 |   8 |
 | 7(Rechazo) |         7 |   7 |   7 | 7 | 0 |     7 |   8 |
 | 8(fdt)     |           |     |     |   |   |       |     |
+
+### Compilación
+
+```sh
+$ gcc -o TP_SSL main.c
+$ ./TP_SSL
+```
+
