@@ -17,6 +17,7 @@ struct _Automaton;
 struct _AutomatonTable;
 struct _CharacterStateMatcher;
 struct _PrettyPrinter;
+struct _State;
 
 char dot[] = ".";
 char zeroAndOne[] = "01";
@@ -35,6 +36,8 @@ bool actualStateIsFinal(struct _Automaton automaton);
 bool askForAnotherLexicalCheck();
 
 char *requestStringInputToCheck();
+
+void stringRejectionObserver(struct _State, struct _PrettyPrinter *prettyPrinter, char textCharacter);
 
 //State
 
@@ -536,9 +539,7 @@ int main() {
                 automaton.determineCurrentState(&automaton, textCharacter); // (2.1) Determinar el nuevo estado actual
                 prettyPrinter.append(&prettyPrinter, textCharacter);
                 textCharacter = buffer.fetchNextCharacter(&buffer); // (2.2) Actualizar el carácter a analizar
-                if (automaton.actualState.stateProperty == REJECTION && textCharacter == CENTINEL_CHARACTER) {
-                    prettyPrinter.flush(&prettyPrinter);
-                }
+                stringRejectionObserver(automaton.actualState, &prettyPrinter, textCharacter);
             }
             // (3) Si el estado es final, la cadena procesada es una constante entera.
             if (actualStateIsFinal(automaton)) {
@@ -552,12 +553,21 @@ int main() {
         prettyPrinter.printResults(&prettyPrinter);
         prettyPrinter.flushPersistence(&prettyPrinter);
         lexicalCheckRequired = askForAnotherLexicalCheck();
+
     } while (lexicalCheckRequired);
 
     automatonTable.freeAutomatonTable(&automatonTable);
     prettyPrinter.prettyPrinterFree(&prettyPrinter);
 
     return 0;
+}
+
+//Utils functions
+
+void stringRejectionObserver(State state, PrettyPrinter *prettyPrinter, char textCharacter) {
+    if (state.stateProperty == REJECTION && textCharacter == CENTINEL_CHARACTER) {
+        prettyPrinter->flush(prettyPrinter);
+    }
 }
 
 bool stateIsNotFinalNorFDT(Automaton automaton) {
