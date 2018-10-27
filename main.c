@@ -42,7 +42,7 @@ void stringRejectionObserver(struct _State, struct _PrettyPrinter *prettyPrinter
 //State
 
 typedef enum {
-    INITIAL, FINAL, CENTINEL, END_OF_TEXT, REJECTION, NULL_STATE, NONE
+    INITIAL, FINAL, CENTINEL_EXPECTANT, END_OF_TEXT, REJECTION, NULL_STATE, NONE
 } StateProperty;
 
 typedef struct _State {
@@ -65,7 +65,7 @@ int CharacterStateMatcher__match(CharacterStateMatcher *self, char characterToMa
 
     size_t lengthOfMatchableCharacters = strlen(charactersToMatch);
 
-    if (lengthOfMatchableCharacters == 0) {//fdt
+    if (lengthOfMatchableCharacters == 0 && characterToMatch == FDT) {
         return self->column;
     }
 
@@ -144,7 +144,7 @@ State **AutomatonTableService__getTable() {
     State state2 = {.id = 2, .stateProperty = NONE};
     State state3 = {.id = 3, .stateProperty = NONE};
     State state4 = {.id = 4, .stateProperty = NONE};
-    State state5 = {.id = 5, .stateProperty = CENTINEL};
+    State state5 = {.id = 5, .stateProperty = CENTINEL_EXPECTANT};
     State state6 = {.id = 6, .stateProperty = FINAL};
     State state7 = {.id = 7, .stateProperty = REJECTION};
     State state8 = {.id = 8, .stateProperty = END_OF_TEXT};
@@ -382,7 +382,6 @@ typedef struct _PrettyPrinter {
     char *stringBuilder;
     char **persistedStrings;
     int persistedStringsQty;
-    int lastPersistedStringsQty;
     Append append;
     PersistString persistString;
     PrintResults printResults;
@@ -441,15 +440,14 @@ void PrettyPrinter__flush(PrettyPrinter *self) {
 
 void PrettyPrinter__flushPersistence(PrettyPrinter *self) {
     self->flush(self);
-    self->lastPersistedStringsQty = self->persistedStringsQty;
+    for (int i = 0; i < self->persistedStringsQty; i++) {
+        free(self->persistedStrings[i]);
+    }
     self->persistedStringsQty = 0;
 }
 
 void PrettyPrinter__free(PrettyPrinter *self) {
     free(self->stringBuilder);
-    for (int i = 0; i < self->lastPersistedStringsQty; i++) {
-        free(self->persistedStrings[i]);
-    }
     free(self->persistedStrings);
 }
 
@@ -525,7 +523,6 @@ int main() {
             .flush = PrettyPrinter__flush,
             .flushPersistence = PrettyPrinter__flushPersistence,
             .persistedStringsQty = 0,
-            .lastPersistedStringsQty = 0,
             .persistedStrings = calloc(1, sizeof(char *)),
             .stringBuilder = calloc(1, sizeof(char))};
 
