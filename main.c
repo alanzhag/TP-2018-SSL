@@ -32,8 +32,6 @@ bool stateIsNotFinalNorFDT(struct _Automaton automaton);
 
 bool actualStateIsFinal(struct _Automaton automaton);
 
-bool stateIsCentinel(struct _Automaton automaton);
-
 bool askForAnotherLexicalCheck();
 
 char *requestStringInputToCheck();
@@ -420,9 +418,15 @@ void PrettyPrinter__persistString(PrettyPrinter *self) {
 }
 
 void PrettyPrinter__printResults(PrettyPrinter *self) {
+    int persistedStringsQty = self->persistedStringsQty;
+
     printf("-------Palabras encontradas-------\n");
-    for (int i = 0; i < self->persistedStringsQty; i++) {
-        printf("%d. %s\n", i + 1, self->persistedStrings[i]);
+    if (persistedStringsQty == 0) {
+        printf("----No se encontraron palabras----\n");
+    } else {
+        for (int i = 0; i < persistedStringsQty; i++) {
+            printf("%d. %s\n", i + 1, self->persistedStrings[i]);
+        }
     }
     printf("----------------------------------\n");
 }
@@ -525,24 +529,22 @@ int main() {
     do {
         buffer.input = requestStringInputToCheck();
         char textCharacter = buffer.fetchNextCharacter(&buffer);
-        //TODO: ver que pasa si mando %%%%%%%%%%% (muchas "cadenas vacias")
-        //TODO: ver que pasa si mando 0100010101100B
         while (textCharacter != FDT) { //- Mientras no sea fdt, repetir:
             automaton.setActualStateToInitialState(&automaton); // (1) Estado actual del autómata: estado inicial
             // (2) Mientras no sea un estado final y no sea el estado FDT, repetir
-            //TODO: Si hay error, debo leer hasta el proximo % o fdt. Tiro la basura.
             while (stateIsNotFinalNorFDT(automaton)) {
                 automaton.determineCurrentState(&automaton, textCharacter); // (2.1) Determinar el nuevo estado actual
-                prettyPrinter.append(&prettyPrinter, textCharacter); //esto agrega el %.
+                prettyPrinter.append(&prettyPrinter, textCharacter);
                 textCharacter = buffer.fetchNextCharacter(&buffer); // (2.2) Actualizar el carácter a analizar
+                if (automaton.actualState.stateProperty == REJECTION && textCharacter == CENTINEL_CHARACTER) {
+                    prettyPrinter.flush(&prettyPrinter);
+                }
             }
-            // (3) Si el estado es final, la cadena procesada es una constante entera;
+            // (3) Si el estado es final, la cadena procesada es una constante entera.
             if (actualStateIsFinal(automaton)) {
-                printf("¡La cadena pertenece al lenguaje!\n");
-                prettyPrinter.persistString(&prettyPrinter); //en teoria contiene al %. Debo volarlo.
-            } else { // caso contrario, la cadena no pertenece al lenguaje.
-                printf("La cadena no pertenece al lenguaje.\n");
-                prettyPrinter.flush(&prettyPrinter);
+                prettyPrinter.persistString(&prettyPrinter);
+            } else {
+                prettyPrinter.flush(&prettyPrinter); // Caso contrario, la cadena no pertenece al lenguaje.
             }
         }
 
@@ -567,11 +569,6 @@ bool actualStateIsFinal(Automaton automaton) {
     return automaton.actualState.stateProperty == FINAL;
 }
 
-bool stateIsCentinel(Automaton automaton) {
-    StateProperty stateProperty = automaton.actualState.stateProperty;
-    return stateProperty == CENTINEL;
-}
-
 bool askForAnotherLexicalCheck() {
     char answer;
     printf("¿Desea ingresar otra cadena? S/N: ");
@@ -587,7 +584,7 @@ char *requestStringInputToCheck() {
     string = calloc(1, sizeof(char));
     string[0] = '\0';
     printf("Ingrese la cadena a analizar: ");
-    for (int i = 0; (c = getchar()) != '\n' && c != EOF; i++) { //TODO: el getchar rompe structs
+    for (int i = 0; (c = getchar()) != '\n' && c != EOF; i++) {
         string = realloc(string, (i + 2) * sizeof(char));
         string[i] = (char) c;
         string[i + 1] = FDT;
