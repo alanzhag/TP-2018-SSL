@@ -550,7 +550,7 @@ int main() {
 //Utils functions
 
 void stringRejectionObserver(State state, PrettyPrinter *prettyPrinter, char textCharacter) {
-    if (state.stateProperty == REJECTION && textCharacter == CENTINEL_CHARACTER) {
+    if (state.stateProperty != CENTINEL_EXPECTANT && textCharacter == CENTINEL_CHARACTER) {
         prettyPrinter->flush(prettyPrinter);
     }
 }
